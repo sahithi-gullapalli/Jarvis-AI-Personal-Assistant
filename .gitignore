@@ -9,3 +9,9 @@ credentials.json
 token.json
 free.key
 *.log
+
+# Local AI memory database
+data/
+# Local backup and temporary files
+jarvis_brain_backup.py
+str

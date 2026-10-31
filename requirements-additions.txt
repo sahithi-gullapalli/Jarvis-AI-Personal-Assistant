@@ -1,0 +1,9 @@
+# Install these after the current requirements.txt, preferably in your existing .venv.
+langgraph>=0.2.0
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+fastapi>=0.110.0
+pydantic>=2.6.0
+uvicorn[standard]>=0.27.0
+streamlit>=1.32.0
+pytest>=8.0.0
