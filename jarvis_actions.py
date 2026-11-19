@@ -153,6 +153,72 @@ def get_mail_brief():
     return "You have 3 unread priority emails: team project sync, server alert, and a weekly client report."
 
 
+
+def _matches_any(query, patterns):
+    return any(re.search(pattern, query) for pattern in patterns)
+
+
+def _is_time_request(query):
+    if query == "time":
+        return True
+
+    patterns = [
+        r"\bwhat time is it\b",
+        r"\bwhat's the time\b",
+        r"\bwhat is the time\b",
+        r"\bcurrent time\b",
+        r"\btime now\b",
+        r"\btell me the time\b",
+        r"\bshow me the time\b",
+    ]
+
+    return _matches_any(query, patterns)
+
+
+def _is_date_request(query):
+    if query in {"date", "today"}:
+        return True
+
+    patterns = [
+        r"\bwhat is today's date\b",
+        r"\bwhat's today's date\b",
+        r"\bwhat is the date\b",
+        r"\bwhat's the date\b",
+        r"\btoday's date\b",
+        r"\bcurrent date\b",
+        r"\btell me today's date\b",
+        r"\bshow me today's date\b",
+        r"\bwhat day is it\b",
+    ]
+
+    return _matches_any(query, patterns)
+
+
+def _is_market_request(query):
+    patterns = [
+        r"\bstocks?\b",
+        r"\bshare price\b",
+        r"\bstock price\b",
+        r"\bstock market\b",
+        r"\bmarket overview\b",
+        r"\bmarket briefing\b",
+        r"\bmarket trends?\b",
+        r"\bmarket analysis\b",
+        r"\bnifty\b",
+        r"\bsensex\b",
+        r"\bcrypto\b",
+        r"\bbitcoin\b",
+        r"\bbuy or sell\b",
+    ]
+
+    return _matches_any(query, patterns)
+
+
+def _contains_phrase(query, phrase):
+    pattern = rf"(?<!\w){re.escape(phrase.lower())}(?!\w)"
+    return bool(re.search(pattern, query))
+
+
 def try_action(q):
     """
     Executes instant deterministic actions. Returns response string if handled,
@@ -161,18 +227,34 @@ def try_action(q):
     q_clean = q.lower().strip(" .,!?")
 
     # 1. Stock Market Queries & Buy/Sell Analysis
-    if any(k in q_clean for k in ("stock", "market", "nifty", "sensex", "crypto", "bitcoin", "buy or sell")):
+    if _is_market_request(q_clean):
+
         for sym, name in jarvis_market.DEFAULT_TICKERS.items():
-            if name.lower() in q_clean or sym.lower().replace(".ns", "") in q_clean:
+            ticker_symbol = sym.lower().replace(".ns", "")
+
+            if (
+                _contains_phrase(q_clean, name)
+                or _contains_phrase(q_clean, ticker_symbol)
+            ):
                 data = jarvis_market.analyze_ticker(sym)
+
                 if data:
-                    direction = "up" if data["pct_change"] >= 0 else "down"
-                    return (
-                        f"{data['name']} is trading at {data['currency']}{data['price']:,}, "
-                        f"{direction} {abs(data['pct_change'])}%. "
-                        f"Technical indicator: {data['signal']}. {data['reason']}"
+                    direction = (
+                        "up" if data["pct_change"] >= 0 else "down"
                     )
-        return "Here is the market overview: " + jarvis_market.market_briefing()
+
+                    return (
+                        f"{data['name']} is trading at "
+                        f"{data['currency']}{data['price']:,}, "
+                        f"{direction} {abs(data['pct_change'])}%. "
+                        f"Technical indicator: {data['signal']}. "
+                        f"{data['reason']}"
+                    )
+
+        return (
+            "Here is the market overview: "
+            + jarvis_market.market_briefing()
+        )
 
     # 2. WhatsApp Auto-Message
     m = re.search(r"(?:send|reply|message)\s+(?:on\s+whatsapp\s+to|whatsapp\s+to|to)\s+(.+?)(?:\s+saying\s+(.+))?$", q_clean)
@@ -227,9 +309,16 @@ def try_action(q):
         return "System audio muted."
 
     # 8. Date and Time
-    if "time" in q_clean:
-        return "It is currently " + datetime.datetime.now().strftime("%I:%M %p")
-    if "date" in q_clean or "today" in q_clean:
-        return "Today is " + datetime.datetime.now().strftime("%A, %B %d, %Y")
+    if _is_time_request(q_clean):
+        return (
+            "It is currently "
+            + datetime.datetime.now().strftime("%I:%M %p")
+        )
+
+    if _is_date_request(q_clean):
+        return (
+            "Today is "
+            + datetime.datetime.now().strftime("%A, %B %d, %Y")
+        )
 
     return None
